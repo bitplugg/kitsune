@@ -8,7 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "kitsune" }]
 
 [project.scripts]
-kitsune = "kitsune.console:main"
+kitsune = "kitsune.cli:main"
 
 [build-system]
 requires = ["setuptools>=61"]

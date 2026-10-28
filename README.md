@@ -16,15 +16,24 @@ aircrack-ng / routersploit / sqlmap. Всё пишут в **общую SQLite-б
 ## Установка
 
 ```bash
-bash install.sh          # venv + pip install -e . + kitsune в PATH
-# или вручную:
-pip install -e .
-kitsune                  # REPL
+# вариант 1 — как системная команда (recommended):
+pipx install --editable /path/to/kitsune     # → бинарь `kitsune` в PATH
+
+git clone https://github.com/bitplugg/kitsune.git ~/kitsune
+pipx install --editable ~/kitsune
+kitsune --version     # kitsune 0.1.0
+
+# вариант 2 — классический venv:
+bash install.sh       # venv + pip install -e . + линк в /usr/local/bin
+
+# вариант 3 — без установки:
+python3 main.py
 ```
 
 # CLI-режимы
 
 ```bash
+kitsune                                              # интерактивный REPL
 kitsune --version
 kitsune -c 'use doctor; run'                        # одиночная команда
 kitsune -c 'use portscan; set target 127.0.0.1; run; stats'
@@ -152,6 +161,7 @@ kitsune > dashboard       # curses UI: статистика, группы мод
 
 - ✅ recon → network → web → exploits → payloads → post (полный цикл)
 - ✅ resource-детали, live-sessions, team-sync, REST API, TUI, отчёты (md+html)
+- ✅ `pipx install` → системный бинарь `kitsune` (CLI-флаги -c / --resource)
 - 📋 chain-checkpoints (промежуточный save-/load state между шагами)
 - 📋 GUI-клиент поверх REST api
 - 📋 PyPI-публикация (pip install kitsune)
