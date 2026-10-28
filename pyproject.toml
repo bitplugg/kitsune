@@ -1,0 +1,18 @@
+[project]
+name = "kitsune"
+version = "0.1.0"
+description = "Kitsune - the nine-tailed pentest framework"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "kitsune" }]
+
+[project.scripts]
+kitsune = "kitsune.console:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["kitsune*"]

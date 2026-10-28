@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+*.db
+kitsune_report_*
+kitsune_exfil_*
+kitsune_chain_report*
+*.loot

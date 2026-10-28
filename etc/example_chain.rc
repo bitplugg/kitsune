@@ -1,0 +1,32 @@
+# kitsune example chain — базовая разведка одного хоста/подсети
+# запуск: kitsune > resource etc/example_chain.rc
+# переменные можно переопределить снаружи: setvar target 192.168.1.50
+
+# --- параметры (переопределяемые) -----------------------------------
+setvar target 127.0.0.1
+setvar web_port 8803
+setvar ports 8780-8810
+
+# --- этап 1: сканирование портов ------------------------------------
+use portscan
+set target ${target}
+set ports ${ports}
+set threads 120
+run
+back
+
+# --- этап 2: кто это -------------------------------------------------
+use techdetect
+set url http://${target}:${web_port}/
+run
+back
+
+# --- этап 3: что прячется --------------------------------------------
+use dirfuzz
+set url http://${target}:${web_port}/
+set threads 30
+run
+back
+
+# --- этап 4: отчёт ----------------------------------------------------
+report kitsune_chain_report.md
