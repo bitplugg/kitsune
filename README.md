@@ -84,6 +84,12 @@ doctor / resetdb [yes] / stats     обслуживание сессии
 python3 -m unittest discover -s tests -v    # 14 тестов (db, framework, helpers)
 ```
 
+## 📘 Wiki
+
+Полная документация по каждому модулю (примеры, все опции, таблицы,
+development-гайд) — [*wiki*](https://bitplugg.github.io/kitsune/wiki.html)
+на GitHub Pages (исходники: `docs/00-overview.md` ... `docs/10-development.md`).
+
 ## Модули
 
 | Модуль | Аналог | Сложность | Статус |

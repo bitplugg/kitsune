@@ -1,0 +1,4 @@
+theme: jekyll-theme-hacker
+title: kitsune wiki
+description: Nine-tailed pentest framework — полная документация по модулям
+markdown: kramdown
