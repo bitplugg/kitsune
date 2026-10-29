@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# kitsune-air — авто-переключение wireless ↔ monitor (в т.ч. для rtw88/RTL8821CE)
+#   kitsune-air on      поднять monitor mode (стоп NM/wpa, rfkill, fallback на<if>mon)
+#   kitsune-air off     вернуть всё: managed + NetworkManager + reconnect
+#   kitsune-air status  текущее состояние iface/NM/rfkill
+#   kitsune-air help
+#
+# root-нужды: скрипт сам перезапустит себя через sudo при нехватке прав.
+
+set -uo pipefail
+
+IFACE=""
+USE_SEPARATE_MON=""
+SELF=""
+RED="\033[0;31m"; GREEN="\033[0;32m"; YEL="\033[0;33m"; ORA="\033[0;38;5;208m"; DIM="\033[2m"; RST="\033[0m"
+
+msg()  { printf "%b[*] %b%b\n" "$ORA" "$1" "$RST"; }
+ok()   { printf "%b[+] %b%b\n" "$GREEN" "$1" "$RST"; }
+warn() { printf "%b[!] %b%b\n" "$YEL" "$1" "$RST"; }
+err()  { printf "%b[-] %b%b\n" "$RED" "$1" "$RST" >&2; }
+die()  { err "$1"; exit 1; }
+
+abs_self() {
+  local src
+  src="${BASH_SOURCE[0]}"
+  readlink -f "$src"
+}
+
+reexec_as_root() {
+  if [ "$(id -u)" -eq 0 ]; then return; fi
+  msg "нужен root — перезапускаюсь через sudo ($1)"
+  exec sudo -E "$SELF" "$@"
+}
+
+has() { command -v "$1" >/dev/null 2>&1; }
+
+detect_iface() {
+  local cand
+  for cand in $(iw dev 2>/dev/null | awk '/Interface/ {print $2}'); do
+    echo "$cand"; return 0
+  done
+  return 1
+}
+
+want_tools() {
+  local miss=0 t
+  for t in ip iw nmcli systemctl rfkill; do
+    if ! has "$t"; then err "нет утилиты: $t (pacman -S iproute2 iw networkmanager ...)"; miss=1; fi
+  done
+  [ "$miss" -eq 0 ]
+}
+
+get_type() {
+  iw dev "$1" info 2>/dev/null | awk '/[[:space:]]type[[:space:]]/ {print $2}'
+}
+
+get_phy() {
+  # 'wiphy 0' → 0
+  iw dev "$1" info 2>/dev/null | awk '/wiphy/ {print $2}'
+}
+
+# ---------------------------------------------------------------- on
+air_on() {
+  local iface="${1:-}" type main_iface=""
+  reexec_as_root "${FUNCNAME[0]}"
+  want_tools || die "ставь недостающие тулзы и повтори"
+
+  if [ -z "$iface" ]; then
+    iface="$(detect_iface)" || die "wi-fi интерфейсов нет (iw dev пуст)"
+  fi
+  IFACE="$iface"
+  msg "цель: $iface"
+
+  msg "глушим NetworkManager (иначе он вернёт managed за спиной)"
+  systemctl is-active --quiet NetworkManager && systemctl stop NetworkManager || true
+  if has wpa_supplicant; then pkill -f wpa_supplicant 2>/dev/null || true; fi
+  rfkill unblock wifi 2>/dev/null || true
+  sleep 1
+
+  msg "switch → monitor"
+  ip link set "$iface" down
+  if iw dev "$iface" set type monitor; then
+    ip link set "$iface" up
+    type="$(get_type "$iface")"
+    if [ "$type" = "monitor" ]; then
+      ok "$iface → monitor mode ✔"
+      warn "если SSH/Wi-Fi-сессия пропала — это норм (internet теперь отключён)"
+      msg "дальше в kitsune: use scan → set iface $iface → run"
+      return 0
+    fi
+  fi
+
+  # fallback: rtw88/rtl8821ce часто игнорирует translate существующего iface.
+  # создадим отдельный monitor-интерфейс $iface "mon"
+  local phy
+  phy="$(get_phy "$iface")"
+  if [ -n "$phy" ]; then
+    USE_SEPARATE_MON="${iface}mon"
+    warn "прямой set type monitor не сработал — создаю отдельный $USE_SEPARATE_MON (phy$phy)"
+    iw phy "phy$phy" interface add "$USE_SEPARATE_MON" type monitor 2>/dev/null \
+      || die "и это не сработало — адаптер режет monitor (см. rtw88 known issues)"
+    ip link set "$USE_SEPARATE_MON" up
+    type="$(get_type "$USE_SEPARATE_MON")"
+    [ "$type" = "monitor" ] || die "монитор-интерфейс не поднялся"
+    ok "$USE_SEPARATE_MON → monitor mode ✔"
+    warn "выключи главный: ip link set $iface down (чтобы NM/wpa не мешали)"
+    ip link set "$iface" down || true
+    msg "в kitsune: use scan → set iface $USE_SEPARATE_MON → run"
+    return 0
+  fi
+  die "не сумел поднять monitor mode (см. wiki: docs/08-wireless.md)"
+}
+
+# --------------------------------------------------------------- off
+air_off() {
+  local iface="${1:-}" type main_iface=""
+  reexec_as_root "${FUNCNAME[0]}"
+  want_tools || die "ставь недостающие тулзы и повтори"
+
+  # пользовательский выбор
+  if [ -n "$iface" ]; then
+    IFACE="$iface"
+  else
+    # приоритет: мон-интерфейс (если есть), иначе первый wireless dev
+    main_iface="$(iw dev 2>/dev/null | awk '/Interface/ {print $2}' | while read -r d; do
+                    case "$d" in *mon*) ;; *) echo "$d" ;; esac; done | head -1)"
+    mon_dev="$(iw dev 2>/dev/null | awk '/Interface/ {print $2}' | grep -E "mon[0-9]*$" | head -1)"
+    IFACE="${main_iface:-$(detect_iface)}"
+  fi
+
+  if [ -n "${mon_dev:-}" ]; then
+    msg "удаляю отдельный monitor-интерфейс $mon_dev"
+    local phy
+    phy="$(get_phy "$mon_dev")"
+    iw phy "phy$phy" interface del "$mon_dev" 2>/dev/null || true
+  fi
+
+  if [ -n "$IFACE" ]; then
+    msg "switch $IFACE → managed"
+    ip link set "$IFACE" down 2>/dev/null || true
+    if iw dev "$IFACE" set type managed 2>&1; then
+      ip link set "$IFACE" up
+      type="$(get_type "$IFACE")"
+      [ "$type" = "managed" ] && ok "$IFACE → managed ✔" || warn "$IFACE: type=$type (смотри ниже)"
+    else
+      warn "set type managed failed на $IFACE — поможет modprobe -r rtw88_8821ce и повтор"
+    fi
+  fi
+
+  msg "поднятие NetworkManager"
+  rfkill unblock wifi 2>/dev/null || true
+  if ! systemctl is-active --quiet NetworkManager; then systemctl start NetworkManager; fi
+  sleep 2
+  nmcli dev set "$IFACE" managed yes 2>/dev/null || warn "nmcli set managed не сработал"
+
+  # автоподключение к последней известной сети
+  local ssid
+  ssid="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | awk -F: '$2=="802-11-wireless" {print $1; exit}')"
+  if [ -n "$ssid" ]; then
+    msg "переподключаю к последней wi-fi сети: $ssid"
+    nmcli dev wifi connect "$ssid" >/dev/null 2>&1 \
+      && ok "Wi-Fi восстановлен ($ssid)" || warn "не подключился сам — nmcli dev wifi connect \"<SSID>\""
+  else
+    warn "не прошёл активный профиль — nmcli dev wifi connect \"<SSID>\""
+  fi
+
+  ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1 \
+    && ok "интернет ✔" || warn "ping 1.1.1.1 не прошёл (может, NM ещё асчёт)"
+  air_status
+}
+
+# ------------------------------------------------------------ status
+wire_types() {
+  local d
+  for d in $(iw dev 2>/dev/null | awk '/Interface/ {print $2}'); do
+    local t ch
+    t="$(get_type "$d")"
+    ch="$(iw dev "$d" info 2>/dev/null | awk '/channel/ {printf("ch %s", $2); exit}')"
+    printf "%-12s %s %s\n" "${d}" "${t:-unknown}" "$ch"
+  done
+}
+
+nw_state() { systemctl is-active NetworkManager 2>/dev/null || true; }
+rf_state() { rfkill list 2>/dev/null | awk -F: '/Soft blocked/ {printf "%s%s", sep, $NF; sep=",\n"}' | tr -d '\n'; }
+
+air_status() {
+  warn "wireless interfaces:"
+  wire_types
+  printf "  NetworkManager: %s%b\n" "$(nw_state)" "$RST"
+  printf "  rfkill:     %s%b\n" "$(rf_state | tr -d '\n')" "$RST"
+}
+
+# ----------------------------------------------------------- main
+SELF="$(abs_self)"
+case "${1:-help}" in
+  on) air_on "${2:-}" ;;
+  off) air_off "${2:-}" ;;
+  status) air_status ;;
+  help|"")
+    cat <<EOF
+kitsune-air — управление wireless ↔ monitor mode
+
+  kitsune-air on        поднять monitor (стоп NM/wpa/rfkill; fallback moN iface)
+  kitsune-air on wlan1  тот же, но с явным интерфейсом
+  kitsune-air off       вернуть всё: managed + NetworkManager + reconnect
+  kitsune-air status    текущее состояние wi-fi
+
+Важно: запускай локально (не по SSH по Wi-Fi): NM гасит connection.
+EOF
+    ;;
+  *) err "неизвестная команда: $1"; exit 1 ;;
+esac
