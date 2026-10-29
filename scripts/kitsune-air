@@ -196,6 +196,14 @@ case "${1:-help}" in
   on) air_on "${2:-}" ;;
   off) air_off "${2:-}" ;;
   status) air_status ;;
+  wizard)
+    # convenience: открыть kitsune setup-wizard (вариант [3] = wireless workflow)
+    if ! has kitsune; then die "kitsune не найден в PATH (pipx install kitsune)"; fi
+    msg "открываю kitsune setup-wizard — выбирай там [3] wireless"
+    warn "для monitor-режима нужен root: запускай как: sudo kitsune-air wizard"
+    warn "скрипт НЕ управляет интерфейсом; NM лучше сперва: sudo kitsune-air on"
+    exec kitsune -w
+    ;;
   help|"")
     cat <<EOF
 kitsune-air — управление wireless ↔ monitor mode
@@ -204,9 +212,10 @@ kitsune-air — управление wireless ↔ monitor mode
   kitsune-air on wlan1  тот же, но с явным интерфейсом
   kitsune-air off       вернуть всё: managed + NetworkManager + reconnect
   kitsune-air status    текущее состояние wi-fi
+  kitsune-air wizard    открыть kitsune setup-wizard (выбирай там [3] wireless)
 
 Важно: запускай локально (не по SSH по Wi-Fi): NM гасит connection.
 EOF
     ;;
-  *) err "неизвестная команда: $1"; exit 1 ;;
+  *) err "неизвестная команда: $1 (доступно: on / off / status / wizard / help)"; exit 1 ;;
 esac
