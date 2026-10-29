@@ -38,6 +38,7 @@ kitsune --version
 kitsune -c 'use doctor; run'                        # одиночная команда
 kitsune -c 'use portscan; set target 127.0.0.1; run; stats'
 kitsune --resource etc/example_chain.rc             # chain-файл
+kitsune -w                                          # setup-wizard (sqlmap-style)
 ```
 
 ## Запуск
@@ -73,6 +74,7 @@ use / set / run / info / back      работа с модулем (автодо�
 show modules|hosts|ports|subdomains|sessions|loot|all
 sessions / interact <id>           живые reverse-shell сессии
 resource <file.rc> / setvar        chain-автоматизация
+wizard / kitsune -w                sqlmap-style setup-wizard
 report <file.md|file.html>         отчёты
 dashboard                          TUI-обзор
 doctor / resetdb [yes] / stats     обслуживание сессии
@@ -133,6 +135,23 @@ development-гайд) — [*wiki*](https://bitplugg.github.io/kitsune/wiki.html)
 kitsune > report my_scan.md    # markdown таблицы (hosts/ports/loot)
 kitsune > report my_scan.html  # красиво оформленный HTML (тёмная тема)
 ```
+
+## Setup-wizard (sqlmap-style)
+
+```bash
+kitsune -w            # или внутри REPL: wizard
+```
+
+Четыре готовых workflow — отвечаешь на вопросы, kit строит цепочку сам:
+
+| Вариант | Что делает |
+|---|---|
+| `1 network scan` | discovery + portscan по IP/CIDR |
+| `2 web audit` | techdetect + dirfuzz (+ sqli, если есть `?param`) |
+| `3 wireless` | monitor → scan (с опцией канала) → deauth по желанию |
+| `4 recon` | subdomain + dnsenum по домену |
+
+В конце спрашивает про отчёт → `report kitsune_wizard_report.md`.
 
 ## Chain-DSL (resource-скрипты)
 

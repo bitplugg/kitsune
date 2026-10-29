@@ -13,6 +13,8 @@ def build_parser():
         epilog="authorized targets only; use `kitsune` alone for the interactive REPL",
     )
     p.add_argument("--version", action="version", version=f"kitsune {__version__}")
+    p.add_argument("-w", "--wizard", action="store_true",
+                   help="интерактивный brother (как sqlmap --wizard): guided scan")
     p.add_argument("-c", "--cmd", metavar="CMDS",
                    help="выполнить команды (разделитель `;`) и выйти, "
                         "например: kitsune -c 'use doctor; run'")
@@ -23,6 +25,11 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
+
+    if args.wizard:
+        from kitsune import console
+        console.wizard_session()
+        return
 
     if args.resource:
         from kitsune import console

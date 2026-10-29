@@ -41,6 +41,7 @@ HELP = """
   show modules        список модулей
   show hosts|ports|subdomains|loot|options
   report [file.md]    сгенерировать markdown отчёт из базы
+  wizard              sqlmap-style: guided scan (ьomeasures из подсказок)
   dashboard           TUI-обзор (q для выхода)
   stats               счётчики базы
   clear               очистить экран
@@ -384,6 +385,11 @@ class Framework:
         except (curses.error, OSError) as e:
             self.fail(f"TUI недоступен тут: {e} (нужен настоящий терминал)")
         self.print()
+
+    def cmd_wizard(self, _):
+        """sqlmap-style wizard:guided session setup."""
+        from kitsune import console
+        console.wizard(self)
 
     def cmd_doctor(self, _):
         """Проверка окружения: зависимости, тулзы, сеть, база."""

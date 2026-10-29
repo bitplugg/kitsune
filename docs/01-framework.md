@@ -12,6 +12,7 @@ kitsune --version              # kitsune 0.1.0
 kitsune -c 'use doctor; run'   # выполнить одну команду и выйти
 kitsune -c 'use portscan; set target 10.0.0.1; set ports 1-1000; run; stats'
 kitsune --resource etc/example_chain.rc   # выполнить chain-скрипт
+kitsune -w                                # setup-wizard (sqlmap-style)
 ```
 
 Установка через `pipx install --editable /path/to/kitsune`.
@@ -65,6 +66,12 @@ set url http://${target}:8803/
 run
 report kitsune_chain_report.md
 ```
+
+### Wizard (sqlmap-style)
+
+Команда `wizard` в REPL или `kitsune -w` — интерактивный setup-wizard:
+четыре workflow (network scan / web audit / wireless / recon), kit сам
+ставит опции и запускает модули по цепочке, в конце предложит отчёт.
 
 ### Обслуживание
 | Команда | Суть |
